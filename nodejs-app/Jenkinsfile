@@ -1,0 +1,59 @@
+pipeline {
+    agent any
+    
+    tools {
+        nodejs "nodejs"
+    }
+    
+    environment {
+        SCANNER_HOME= tool 'sonar-scanner'
+    }
+
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git changelog: false, poll: false, url: 'https://github.com/kalyanKumarPokkula/GoodReads_Backendjs.git'
+            }
+        }
+        
+        stage('NPM Dependencies') {
+            steps {
+                sh "npm install"
+            }
+        }
+        
+        stage("SonarQube scanner"){
+            steps{
+                withSonarQubeEnv("sonar-scanner"){
+                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=goodreads-cicd \
+                    -Dsonar.sources=. \
+                    -Dsonar.language=js \
+                    -Dsonar.exclusions=node_modules/** \
+                    -Dsonar.sourceEncoding=UTF-8 \
+                    -Dsonar.projectKey=goodreads-cicd '''
+                }
+            }
+        }
+        
+        stage("OWASP Dependency Check"){
+            steps{
+                dependencyCheck additionalArguments: '--scan ./ ', odcInstallation: 'DP'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+        
+        stage('Docker build & Push') {
+            steps {
+                script{
+                    withDockerRegistry(credentialsId: '6fce132f-e8e8-49e5-86e0-ca62673b974a', toolName: 'docker') {
+                        sh "docker build -t goodreads ."
+                        sh "docker tag goodreads kalyankumar21/goodreadsjs:latest"
+                        sh "docker push kalyankumar21/goodreadsjs:latest"
+                        
+                        
+                    }
+                }
+            }
+        }
+    }
+}
