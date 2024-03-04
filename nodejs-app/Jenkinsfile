@@ -67,14 +67,14 @@ pipeline {
             GIT_USER_NAME = "kalyanKumarPokkula"
         }
         steps {
-            withCredentials([usernamePassword(credentialsId: '186e7a76-2824-4a23-b675-9c9d0a794406', passwordVariable: 'GIT_PASSWORD', usernameVariable: 'GIT_USERNAME')]) {
+            withCredentials([string(credentialsId: 'fef2751e-84c6-4034-af32-7e96d57eed75', variable: 'GITHUB_TOKEN')]) {
                     sh "git config user.email ${GIT_REPO_NAME}"
                     sh "git config user.name ${GIT_USER_NAME}"
                     sh "BUILD_NUMBER=${BUILD_NUMBER}"
                     sh "sed -i 's+kalyankumar21/nodejs.*+kalyankumar21/nodejs:${BUILD_NUMBER}+g' manifests/deployment.yml"
                     sh "git add manifests/deployment.yml"
                     sh 'git commit -m "Update deployment image to version ${BUILD_NUMBER}"'
-                    sh "git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/${GIT_USERNAME}/CI-CD-with-Jenkins-and-ArgoCD-on-Kubernetes.git HEAD:master"
+                    sh "git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:master"
             }
         }
     }
