@@ -12,25 +12,25 @@ pipeline {
     stages {
         stage('Git Checkout') {
             steps {
-                git changelog: false, poll: false, url: 'https://github.com/kalyanKumarPokkula/GoodReads_Backendjs.git'
+                git changelog: false, poll: false, url: 'https://github.com/kalyanKumarPokkula/CI-CD-with-Jenkins-and-ArgoCD-on-Kubernetes.git'
             }
         }
         
         stage('NPM Dependencies') {
             steps {
-                sh "npm install"
+                sh "cd nodejs-app && npm install"
             }
         }
         
         stage("SonarQube scanner"){
             steps{
                 withSonarQubeEnv("sonar-scanner"){
-                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=goodreads-cicd \
+                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=nodejs \
                     -Dsonar.sources=. \
                     -Dsonar.language=js \
                     -Dsonar.exclusions=node_modules/** \
                     -Dsonar.sourceEncoding=UTF-8 \
-                    -Dsonar.projectKey=goodreads-cicd '''
+                    -Dsonar.projectKey=nodejs '''
                 }
             }
         }
@@ -46,14 +46,38 @@ pipeline {
             steps {
                 script{
                     withDockerRegistry(credentialsId: '6fce132f-e8e8-49e5-86e0-ca62673b974a', toolName: 'docker') {
-                        sh "docker build -t goodreads ."
-                        sh "docker tag goodreads kalyankumar21/goodreadsjs:latest"
-                        sh "docker push kalyankumar21/goodreadsjs:latest"
+                        sh "cd nodejs-app && docker build -t nodejs:${BUILD_NUMBER} ."
+                        sh "cd nodejs-app && docker tag nodejs kalyankumar21/nodejs:${BUILD_NUMBER}"
+                        sh "cd nodejs-app && docker push kalyankumar21/nodejs:${BUILD_NUMBER}"
                         
                         
                     }
                 }
             }
         }
+        
+        stage("docker image Scanner"){
+            steps{
+               sh "trivy image kalyankumar21/nodejs:${BUILD_NUMBER}"
+            }
+        }
+          stage('Update Deployment File') {
+        environment {
+            GIT_REPO_NAME = "CI-CD-with-Jenkins-and-ArgoCD-on-Kubernetes"
+            GIT_USER_NAME = "kalyanKumarPokkula"
+        }
+        steps {
+            withCredentials([usernamePassword(credentialsId: '186e7a76-2824-4a23-b675-9c9d0a794406', passwordVariable: 'GIT_PASSWORD', usernameVariable: 'GIT_USERNAME')]) {
+                    sh "git config user.email ${GIT_REPO_NAME}"
+                    sh "git config user.name ${GIT_USER_NAME}"
+                    sh "BUILD_NUMBER=${BUILD_NUMBER}"
+                    sh "sed -i 's+kalyankumar21/nodejs.*+kalyankumar21/nodejs:${BUILD_NUMBER}+g' manifests/deployment.yml"
+                    sh "git add manifests/deployment.yml"
+                    sh 'git commit -m "Update deployment image to version ${BUILD_NUMBER}"'
+                    sh "git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/${GIT_USERNAME}/CI-CD-with-Jenkins-and-ArgoCD-on-Kubernetes.git HEAD:master"
+            }
+        }
+    }
+        
     }
 }
